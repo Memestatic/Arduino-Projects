@@ -4,16 +4,20 @@
 #include <avr/wdt.h>
 
 #define BATTERY_PIN A0
+const float REFERENCE_VOLTAGE = 4.97;  // Napięcie odniesienia ADC (zazwyczaj 5V)
+const float R1 = 6900.0;  // Rezystor górny dzielnika (w ohmach)
+const float R2 = 10000.0;   // Rezystor dolny dzielnika (w ohmach)
+const float THRESHOLD_VOLTAGE = 6.0; // Próg napięcia w Voltach
 
 // Definicja pinów dla silników
 #define MOTOR1_PIN1 8  // In1 dla pierwszego silnika
 #define MOTOR1_PIN2 7  // In2 dla pierwszego silnika
 #define MOTOR1_EN    9 // PWM dla pierwszego silnika
-
-#define ECHO_PIN 2
 #define MOTOR2_EN    3 // PWM dla drugiego silnika
 #define MOTOR2_PIN1 4  // In3 dla drugiego silnika
 #define MOTOR2_PIN2 5  // In4 dla drugiego silnika
+
+#define ECHO_PIN 2
 #define TRIGGER_PIN 6
 
 #define IR_PIN 10
@@ -36,86 +40,14 @@ const unsigned long distanceInterval = 100; // Czas pomiędzy kolejnymi pomiaram
 // Próg napięcia baterii - 732 w zakresie 0-1024 daje około 6V (3.55 po dzielniku napięcia)
 const int batteryThreshold = 727;
 
-// Kierunki ruchu
-#define FORWARD 1
-#define BACKWARD 0
-#define MAX_SPEED 255
+const int MAX_SPEED = 255;
 
-
-
-// Funkcje sterujące ruchem silników
-void Forward() {
-    digitalWrite(MOTOR1_PIN1, HIGH);
-    digitalWrite(MOTOR1_PIN2, LOW);
-    analogWrite(MOTOR1_EN, MAX_SPEED);
-    digitalWrite(MOTOR2_PIN1, HIGH);
-    digitalWrite(MOTOR2_PIN2, LOW);
-    analogWrite(MOTOR2_EN, MAX_SPEED);
-}
-
-void Backward() {
-    digitalWrite(MOTOR1_PIN1, LOW);
-    digitalWrite(MOTOR1_PIN2, HIGH);
-    analogWrite(MOTOR1_EN, MAX_SPEED);
-    digitalWrite(MOTOR2_PIN1, LOW);
-    digitalWrite(MOTOR2_PIN2, HIGH);
-    analogWrite(MOTOR2_EN, MAX_SPEED);
-}
-
-void Left() {
-    digitalWrite(MOTOR1_PIN1, HIGH);
-    digitalWrite(MOTOR1_PIN2, LOW);
-    analogWrite(MOTOR1_EN, MAX_SPEED);
-    digitalWrite(MOTOR2_PIN1, HIGH);
-    digitalWrite(MOTOR2_PIN2, LOW);
-    analogWrite(MOTOR2_EN, 0);
-}
-
-void Right() {
-    digitalWrite(MOTOR1_PIN1, HIGH);
-    digitalWrite(MOTOR1_PIN2, LOW);
-    analogWrite(MOTOR1_EN, 0);
-    digitalWrite(MOTOR2_PIN1, HIGH);
-    digitalWrite(MOTOR2_PIN2, LOW);
-    analogWrite(MOTOR2_EN, MAX_SPEED);
-}
-
-void Stop() {
-    digitalWrite(MOTOR1_PIN1, LOW);
-    digitalWrite(MOTOR1_PIN2, LOW);
-    analogWrite(MOTOR1_EN, 0);
-    digitalWrite(MOTOR2_PIN1, LOW);
-    digitalWrite(MOTOR2_PIN2, LOW);
-    analogWrite(MOTOR2_EN, 0);
-}
-
-void Ultrasonic() {
-    // Pomiar odległości co 'distanceInterval' ms
-    if (millis() - lastDistanceMeasurement >= distanceInterval) {
-        lastDistanceMeasurement = millis();
-
-        // Odczyt z czujnika ultradźwiękowego
-        digitalWrite(TRIGGER_PIN, LOW);
-        delayMicroseconds(2);
-        digitalWrite(TRIGGER_PIN, HIGH);
-        delayMicroseconds(10);
-        digitalWrite(TRIGGER_PIN, LOW);
-
-        time = pulseIn(ECHO_PIN, HIGH);
-        distance = time * 0.034 / 2;
-
-        // Wykrywanie przeszkody
-        if (distance < 15) {
-            digitalWrite(DIODE_RED, HIGH);
-            digitalWrite(BUZZER_PIN, HIGH);
-            delay(10);
-            digitalWrite(BUZZER_PIN, LOW);
-        } else {
-            digitalWrite(DIODE_RED, LOW);
-            digitalWrite(BUZZER_PIN, LOW);
-        }
-    }
-}
+void Forward();
+void Backward();
+void Left();
+void Right();
+void Stop();
+void Ultrasonic();
 
 void setup() {
     // Inicjalizacja komunikacji szeregowej
@@ -136,12 +68,17 @@ void setup() {
     pinMode(DIODE_YELLOW, OUTPUT);
     pinMode(BUZZER_PIN, OUTPUT);
 
+    analogWrite(MOTOR1_EN, 0);
+    analogWrite(MOTOR2_EN, 0);
+
     digitalWrite(DIODE_RED, LOW);
     digitalWrite(DIODE_YELLOW, LOW);
     digitalWrite(BUZZER_PIN, LOW);
 
     pinMode(TRIGGER_PIN, OUTPUT);
     pinMode(ECHO_PIN, INPUT);
+
+    pinMode(BATTERY_PIN, INPUT);
 
     wdt_enable(WDTO_2S);
 }
@@ -190,14 +127,98 @@ void loop() {
         Stop();
     }
 
-    int batteryValue = analogRead(BATTERY_PIN);
-    //Serial.println(batteryValue);
+    int adcValue = analogRead(BATTERY_PIN);  // Odczyt ADC
+    float voltageADC = (adcValue / 1023.0) * REFERENCE_VOLTAGE;  // Napięcie na dzielniku
+    float batteryVoltage = voltageADC * (R1 + R2) / R2;         // Przeliczenie na rzeczywiste napięcie
 
-    if (batteryValue < batteryThreshold) {
+    // Sprawdzenie progu
+    if (batteryVoltage < THRESHOLD_VOLTAGE) {
         digitalWrite(DIODE_YELLOW, HIGH);
-    } else {
+    } 
+    else {
         digitalWrite(DIODE_YELLOW, LOW);
     }
 
     Ultrasonic();
+}
+
+// Funkcje sterujące ruchem silników
+void Forward() {
+    analogWrite(MOTOR1_EN, MAX_SPEED);
+    analogWrite(MOTOR2_EN, MAX_SPEED);
+
+    digitalWrite(MOTOR1_PIN1, HIGH);
+    digitalWrite(MOTOR1_PIN2, LOW);
+    
+    digitalWrite(MOTOR2_PIN1, HIGH);
+    digitalWrite(MOTOR2_PIN2, LOW); 
+}
+
+void Backward() {
+    analogWrite(MOTOR1_EN, 100);
+    analogWrite(MOTOR2_EN, 100);
+
+    digitalWrite(MOTOR1_PIN1, LOW);
+    digitalWrite(MOTOR1_PIN2, HIGH);
+    
+    digitalWrite(MOTOR2_PIN1, LOW);
+    digitalWrite(MOTOR2_PIN2, HIGH);
+}
+
+void Left() {
+    analogWrite(MOTOR1_EN, MAX_SPEED);
+    analogWrite(MOTOR2_EN, MAX_SPEED);
+
+    digitalWrite(MOTOR1_PIN1, HIGH);
+    digitalWrite(MOTOR1_PIN2, LOW);
+    
+    digitalWrite(MOTOR2_PIN1, LOW);
+    digitalWrite(MOTOR2_PIN2, HIGH);
+}
+
+void Right() {
+    analogWrite(MOTOR1_EN, MAX_SPEED);
+    analogWrite(MOTOR2_EN, MAX_SPEED);
+
+    digitalWrite(MOTOR1_PIN1, LOW);
+    digitalWrite(MOTOR1_PIN2, HIGH);
+    
+    digitalWrite(MOTOR2_PIN1, HIGH);
+    digitalWrite(MOTOR2_PIN2, LOW);  
+}
+
+void Stop() {
+    digitalWrite(MOTOR1_PIN1, LOW);
+    digitalWrite(MOTOR1_PIN2, LOW);
+    
+    digitalWrite(MOTOR2_PIN1, LOW);
+    digitalWrite(MOTOR2_PIN2, LOW); 
+}
+
+void Ultrasonic() {
+    // Pomiar odległości co 'distanceInterval' ms
+    if (millis() - lastDistanceMeasurement >= distanceInterval) {
+        lastDistanceMeasurement = millis();
+
+        // Odczyt z czujnika ultradźwiękowego
+        digitalWrite(TRIGGER_PIN, LOW);
+        delayMicroseconds(2);
+        digitalWrite(TRIGGER_PIN, HIGH);
+        delayMicroseconds(10);
+        digitalWrite(TRIGGER_PIN, LOW);
+
+        time = pulseIn(ECHO_PIN, HIGH);
+        distance = time * 0.034 / 2;
+
+        // Wykrywanie przeszkody
+        if (distance < 15) {
+            digitalWrite(DIODE_RED, HIGH);
+            digitalWrite(BUZZER_PIN, HIGH);
+            delay(10);
+            digitalWrite(BUZZER_PIN, LOW);
+        } else {
+            digitalWrite(DIODE_RED, LOW);
+            digitalWrite(BUZZER_PIN, LOW);
+        }
+    }
 }
