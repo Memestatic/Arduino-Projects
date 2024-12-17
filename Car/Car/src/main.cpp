@@ -13,14 +13,14 @@ const float THRESHOLD_VOLTAGE = 6.0; // Próg napięcia w Voltach
 #define MOTOR1_PIN1 8  // In1 dla pierwszego silnika
 #define MOTOR1_PIN2 7  // In2 dla pierwszego silnika
 #define MOTOR1_EN    9 // PWM dla pierwszego silnika
-#define MOTOR2_EN    3 // PWM dla drugiego silnika
+#define MOTOR2_EN    10 // PWM dla drugiego silnika
 #define MOTOR2_PIN1 4  // In3 dla drugiego silnika
 #define MOTOR2_PIN2 5  // In4 dla drugiego silnika
 
 #define ECHO_PIN 2
 #define TRIGGER_PIN 6
 
-#define IR_PIN 10
+#define IR_PIN 3
 #define BUZZER_PIN 11
 #define DIODE_YELLOW 12
 #define DIODE_RED 13
@@ -37,10 +37,8 @@ int distance = 0;
 unsigned long lastDistanceMeasurement = 0;
 const unsigned long distanceInterval = 100; // Czas pomiędzy kolejnymi pomiarami (100ms)
 
-// Próg napięcia baterii - 732 w zakresie 0-1024 daje około 6V (3.55 po dzielniku napięcia)
-const int batteryThreshold = 727;
-
 const int MAX_SPEED = 255;
+const int CURVE_SPEED = 100;
 
 void Forward();
 void Backward();
@@ -123,7 +121,7 @@ void loop() {
     }
     if (millis() - timestamp > TIMEOUT) {
         // Zatrzymanie silników po upływie TIMEOUT
-        Serial.println("Forced stop");
+        //Serial.println("Forced stop");
         Stop();
     }
 
@@ -134,9 +132,12 @@ void loop() {
     // Sprawdzenie progu
     if (batteryVoltage < THRESHOLD_VOLTAGE) {
         digitalWrite(DIODE_YELLOW, HIGH);
+        Serial.println("Low battery voltage " + String(batteryVoltage));
+        
     } 
     else {
         digitalWrite(DIODE_YELLOW, LOW);
+        Serial.println("Normal battery voltage " + String(batteryVoltage));
     }
 
     Ultrasonic();
@@ -155,8 +156,8 @@ void Forward() {
 }
 
 void Backward() {
-    analogWrite(MOTOR1_EN, 100);
-    analogWrite(MOTOR2_EN, 100);
+    analogWrite(MOTOR1_EN, CURVE_SPEED);
+    analogWrite(MOTOR2_EN, CURVE_SPEED);
 
     digitalWrite(MOTOR1_PIN1, LOW);
     digitalWrite(MOTOR1_PIN2, HIGH);
@@ -166,8 +167,8 @@ void Backward() {
 }
 
 void Left() {
-    analogWrite(MOTOR1_EN, MAX_SPEED);
-    analogWrite(MOTOR2_EN, MAX_SPEED);
+    analogWrite(MOTOR1_EN, CURVE_SPEED);
+    analogWrite(MOTOR2_EN, CURVE_SPEED);
 
     digitalWrite(MOTOR1_PIN1, HIGH);
     digitalWrite(MOTOR1_PIN2, LOW);
@@ -177,8 +178,8 @@ void Left() {
 }
 
 void Right() {
-    analogWrite(MOTOR1_EN, MAX_SPEED);
-    analogWrite(MOTOR2_EN, MAX_SPEED);
+    analogWrite(MOTOR1_EN, CURVE_SPEED);
+    analogWrite(MOTOR2_EN, CURVE_SPEED);
 
     digitalWrite(MOTOR1_PIN1, LOW);
     digitalWrite(MOTOR1_PIN2, HIGH);
@@ -208,7 +209,7 @@ void Ultrasonic() {
         digitalWrite(TRIGGER_PIN, LOW);
 
         time = pulseIn(ECHO_PIN, HIGH);
-        distance = time * 0.034 / 2;
+        distance = time / (29 * 2);
 
         // Wykrywanie przeszkody
         if (distance < 15) {
