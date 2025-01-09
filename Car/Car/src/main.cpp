@@ -49,6 +49,7 @@ void Backward();
 void Left();
 void Right();
 void Stop();
+void BlinkYellow();
 void Ultrasonic();
 void saveDistanceToEEPROM(int distance);
 int readDistanceFromEEPROM();
@@ -127,6 +128,7 @@ void loop() {
                 if (obstacleDistance < 40) {
                     obstacleDistance += 5;
                     saveDistanceToEEPROM(obstacleDistance);
+                    BlinkYellow();
                     Serial.println("Increased distance to: " + String(obstacleDistance));
                 }
                 break;
@@ -134,6 +136,7 @@ void loop() {
                 if (obstacleDistance > 5) {
                     obstacleDistance -= 5;
                     saveDistanceToEEPROM(obstacleDistance);
+                    BlinkYellow();
                     Serial.println("Decreased distance to: " + String(obstacleDistance));
                 }
                 break;
@@ -220,6 +223,12 @@ void Stop() {
     
     digitalWrite(MOTOR2_PIN1, LOW);
     digitalWrite(MOTOR2_PIN2, LOW); 
+}
+
+void BlinkYellow(){
+    digitalWrite(DIODE_YELLOW, HIGH);
+    delay(50);
+    digitalWrite(DIODE_YELLOW, LOW);
 }
 
 void Ultrasonic() {
