@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <IRremote.hpp>
 #include <Wire.h>
+#include <EEPROM.h>
 #include <avr/wdt.h>
 
 #define BATTERY_PIN A0
@@ -40,12 +41,17 @@ const unsigned long distanceInterval = 100; // Czas pomiędzy kolejnymi pomiaram
 const int MAX_SPEED = 255;
 const int CURVE_SPEED = 100;
 
+int obstacleDistance = 15; // Domyślna odległość wykrywania przeszkody (w cm)
+#define EEPROM_ADDRESS 0 // Adres w pamięci EEPROM
+
 void Forward();
 void Backward();
 void Left();
 void Right();
 void Stop();
 void Ultrasonic();
+void saveDistanceToEEPROM(int distance);
+int readDistanceFromEEPROM();
 
 void setup() {
     // Inicjalizacja komunikacji szeregowej
@@ -79,6 +85,10 @@ void setup() {
     pinMode(BATTERY_PIN, INPUT);
 
     wdt_enable(WDTO_2S);
+
+    // Odczytanie zapisanej odległości z EEPROM
+    obstacleDistance = readDistanceFromEEPROM();
+    Serial.println("Wczytana odległość z EEPROM: " + String(obstacleDistance));
 }
 
 void loop() { 
@@ -92,6 +102,8 @@ void loop() {
         } else {
             currentCode = IrReceiver.decodedIRData.decodedRawData;
         }
+
+        Serial.println("Received code: " + String(currentCode, HEX));
 
         // Wykonanie akcji w zależności od kodu
         switch (currentCode) {
@@ -110,6 +122,20 @@ void loop() {
             case 0xA55AFF00: // Przycisk 'Right'
                 Serial.println("Right");
                 Right();
+                break;
+            case 0xea15ff00: // Przycisk 'Increase Distance'
+                if (obstacleDistance < 40) {
+                    obstacleDistance += 5;
+                    saveDistanceToEEPROM(obstacleDistance);
+                    Serial.println("Increased distance to: " + String(obstacleDistance));
+                }
+                break;
+            case 0xf807ff00: // Przycisk 'Decrease Distance'
+                if (obstacleDistance > 5) {
+                    obstacleDistance -= 5;
+                    saveDistanceToEEPROM(obstacleDistance);
+                    Serial.println("Decreased distance to: " + String(obstacleDistance));
+                }
                 break;
             default:
                 Serial.println("Unknown code or stop signal");
@@ -212,7 +238,7 @@ void Ultrasonic() {
         distance = time / (29 * 2);
 
         // Wykrywanie przeszkody
-        if (distance < 15) {
+        if (distance < obstacleDistance) {
             digitalWrite(DIODE_RED, HIGH);
             digitalWrite(BUZZER_PIN, HIGH);
             delay(10);
@@ -222,4 +248,17 @@ void Ultrasonic() {
             digitalWrite(BUZZER_PIN, LOW);
         }
     }
+}
+
+void saveDistanceToEEPROM(int distance) {
+    EEPROM.write(EEPROM_ADDRESS, distance);
+}
+
+int readDistanceFromEEPROM() {
+    int storedDistance = EEPROM.read(EEPROM_ADDRESS);
+    if (storedDistance < 5 || storedDistance > 40) {
+        storedDistance = 15; // Domyślna odległość
+        saveDistanceToEEPROM(storedDistance);
+    }
+    return storedDistance;
 }
